@@ -1,0 +1,43 @@
+{
+  "id": "file-hasher",
+  "name": "文件哈希计算器",
+  "version": "0.1.0",
+  "description": "计算文件的 SHA-256 哈希值的示例 Sidecar 插件",
+  "author": "AIO Hub Team",
+  "icon": "🔐",
+  "host": {
+    "appVersion": ">=0.1.0"
+  },
+  "type": "sidecar",
+  "sidecar": {
+    "executable": {
+      "win32-x64": "target/debug/file-hasher.exe",
+      "win32-arm64": "target/debug/file-hasher.exe",
+      "darwin-x64": "target/debug/file-hasher",
+      "darwin-arm64": "target/debug/file-hasher",
+      "linux-x64": "target/debug/file-hasher",
+      "linux-arm64": "target/debug/file-hasher"
+    },
+    "args": []
+  },
+  "methods": [
+    {
+      "name": "calculateHash",
+      "description": "计算文件的哈希值",
+      "parameters": [
+        {
+          "name": "path",
+          "type": "string",
+          "required": true,
+          "description": "要计算哈希的文件路径"
+        },
+        {
+          "name": "algorithm",
+          "type": "string",
+          "required": false,
+          "description": "哈希算法 (默认: sha256)"
+        }
+      ]
+    }
+  ]
+}
