@@ -18,5 +18,8 @@
     "file-hasher"
   ],
   "author": "AIO Hub Team",
-  "license": "MIT"
+  "license": "MIT",
+  "devDependencies": {
+    "archiver": "^7.0.1"
+  }
 }

@@ -7,6 +7,7 @@ import { execSync } from 'child_process';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import archiver from 'archiver';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -176,6 +177,55 @@ function packagePlugin() {
     console.log(`   │   └── ${file}`);
   });
   console.log('   └── manifest.json');
+  
+  return distDir;
+}
+
+// 创建 ZIP 压缩包
+async function createZipArchive(distDir) {
+  console.log('');
+  console.log('🗜️  创建 ZIP 压缩包...');
+
+  const pluginName = 'file-hasher';
+  const version = JSON.parse(
+    fs.readFileSync(path.join(__dirname, 'manifest.json'), 'utf-8')
+  ).version;
+  
+  const zipFileName = `${pluginName}-v${version}.zip`;
+  const zipPath = path.join(__dirname, zipFileName);
+
+  // 删除旧的 zip 文件
+  if (fs.existsSync(zipPath)) {
+    fs.unlinkSync(zipPath);
+    console.log(`   ✓ 删除旧版本: ${zipFileName}`);
+  }
+
+  return new Promise((resolve, reject) => {
+    const output = fs.createWriteStream(zipPath);
+    const archive = archiver('zip', {
+      zlib: { level: 9 } // 最高压缩级别
+    });
+
+    output.on('close', () => {
+      const sizeInMB = (archive.pointer() / 1024 / 1024).toFixed(2);
+      console.log(`   ✓ 压缩包大小: ${sizeInMB} MB`);
+      console.log('');
+      console.log(`✅ 发布包已创建: ${zipFileName}`);
+      console.log(`   路径: ${zipPath}`);
+      resolve(zipPath);
+    });
+
+    archive.on('error', (err) => {
+      reject(err);
+    });
+
+    archive.pipe(output);
+
+    // 将 dist/ 目录的内容打包（不包含 dist/ 本身）
+    archive.directory(distDir, false);
+
+    archive.finalize();
+  });
 }
 
 // 主流程
@@ -192,14 +242,20 @@ async function main() {
     console.log(`✅ 完成: ${successCount}/${Object.keys(TARGETS).length} 个平台构建成功`);
     
     if (successCount > 0) {
-      packagePlugin();
+      const distDir = packagePlugin();
+      
+      // 创建 zip 压缩包
+      if (args.includes('--package')) {
+        await createZipArchive(distDir);
+      }
     }
   } else {
     // 构建指定平台
     const success = buildTarget(targetPlatform);
     
     if (success && args.includes('--package')) {
-      packagePlugin();
+      const distDir = packagePlugin();
+      await createZipArchive(distDir);
     }
   }
 }

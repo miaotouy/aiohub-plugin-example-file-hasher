@@ -66,18 +66,21 @@ bun run build:all
 bun run package
 ```
 
-这会创建 `dist/` 目录，包含：
+这会执行以下操作：
 
-```
-dist/
-├── bin/
-│   ├── file-hasher-windows-x64.exe
-│   ├── file-hasher-macos-arm64
-│   ├── file-hasher-linux-x64
-│   └── ...
-├── manifest.json  (生产环境配置)
-└── README.md
-```
+1. **编译 release 版本**（当前平台）
+2. **创建 `dist/` 目录**，包含：
+   ```
+   dist/
+   ├── bin/
+   │   ├── file-hasher-windows-x64.exe
+   │   ├── file-hasher-macos-arm64
+   │   ├── file-hasher-linux-x64
+   │   └── ...
+   ├── manifest.json  (生产环境配置)
+   └── README.md
+   ```
+3. **生成 `.zip` 压缩包**：`file-hasher-v0.1.0.zip`
 
 生产环境的 `manifest.json` 中，可执行文件路径会更新为：
 
@@ -92,6 +95,10 @@ dist/
   }
 }
 ```
+
+**最终产物**：
+- `dist/` - 未压缩的插件目录
+- `file-hasher-v0.1.0.zip` - 可直接分发的压缩包（与 CI 构建产物格式一致）
 
 ## 插件使用
 
@@ -144,19 +151,20 @@ file-hasher --path "/path/to/file.txt"
 ```
 example-file-hasher/
 ├── src/
-│   └── main.rs           # Rust 源码
-├── target/               # Cargo 构建产物（开发）
+│   └── main.rs                    # Rust 源码
+├── target/                        # Cargo 构建产物（开发）
 │   └── <triple>/
 │       └── debug/
 │           └── file-hasher[.exe]
-├── dist/                 # 打包产物（生产）
+├── dist/                          # 打包产物（生产，gitignore）
 │   ├── bin/
 │   │   └── file-hasher-*.{exe,}
 │   └── manifest.json
-├── build.js              # 多平台构建脚本
-├── Cargo.toml            # Rust 项目配置
-├── manifest.json         # 插件清单（开发环境）
-├── package.json          # 构建命令
+├── file-hasher-v0.1.0.zip         # 发布包（gitignore）
+├── build.js                       # 多平台构建脚本
+├── Cargo.toml                     # Rust 项目配置
+├── manifest.json                  # 插件清单（开发环境）
+├── package.json                   # 构建命令 + 依赖
 └── README.md
 ```
 
