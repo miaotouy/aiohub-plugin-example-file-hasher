@@ -1,0 +1,22 @@
+{
+  "name": "file-hasher-plugin",
+  "version": "0.1.0",
+  "description": "文件哈希计算器 Sidecar 插件",
+  "type": "module",
+  "scripts": {
+    "build": "cargo build",
+    "build:release": "cargo build --release",
+    "build:all": "node build.js --all --release",
+    "package": "node build.js --release --package",
+    "dev": "cargo build && cargo run",
+    "clean": "cargo clean && rimraf dist"
+  },
+  "keywords": [
+    "aio-hub",
+    "plugin",
+    "sidecar",
+    "file-hasher"
+  ],
+  "author": "AIO Hub Team",
+  "license": "MIT"
+}
