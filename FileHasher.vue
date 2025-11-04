@@ -12,11 +12,21 @@
           </el-radio-group>
         </div>
         <div class="header-actions">
-          <el-button @click="selectFile" type="primary" :icon="FolderOpened">
+          <el-checkbox v-model="autoCalculate" label="自动计算" />
+          <el-button @click="selectFiles" type="primary" :icon="FolderOpened">
             选择文件
           </el-button>
+          <el-button
+            @click="calculateAllFiles"
+            type="success"
+            :icon="Checked"
+            :disabled="files.length === 0"
+            :loading="isCalculating"
+          >
+            批量计算
+          </el-button>
           <el-button @click="clearAll" :icon="Delete" plain>
-            清空
+            清空列表
           </el-button>
         </div>
       </div>
@@ -24,12 +34,13 @@
 
     <!-- 主内容区域 -->
     <el-row :gutter="20" class="content-section">
-      <!-- 左侧：文件输入区 -->
-      <el-col :span="12">
-        <el-card shadow="never" class="box-card input-card">
+      <!-- 左侧：文件列表 -->
+      <el-col :span="14">
+        <el-card shadow="never" class="box-card file-list-card">
           <template #header>
             <div class="card-header">
-              <span>文件选择</span>
+              <span>文件列表</span>
+              <el-tag type="info" size="small">{{ files.length }} 个文件</el-tag>
             </div>
           </template>
           <div
@@ -45,91 +56,103 @@
               <p>拖拽文件到此处</p>
             </div>
 
-            <div v-if="!filePath" class="empty-state">
-              <el-icon class="empty-icon"><Document /></el-icon>
-              <p class="empty-text">请选择文件或拖拽文件到此处</p>
-              <p class="empty-hint">支持 SHA-256、SHA-512、MD5 算法</p>
-            </div>
-
-            <div v-else class="file-info">
-              <div class="info-group">
-                <label>文件路径</label>
-                <el-input
-                  v-model="filePath"
-                  readonly
-                  placeholder="文件路径将显示在这里"
+            <el-scrollbar v-if="files.length > 0" class="file-list-scrollbar">
+              <div class="file-list">
+                <div
+                  v-for="(file, index) in files"
+                  :key="file.path"
+                  class="file-item"
+                  :class="{ 'is-calculating': file.status === 'calculating' }"
                 >
-                  <template #append>
-                    <el-button @click="selectFile" :icon="FolderOpened" />
-                  </template>
-                </el-input>
-              </div>
-              <div class="info-group">
-                <label>当前算法</label>
-                <div class="algorithm-display">
-                  {{ algorithmLabel }}
+                  <el-icon class="file-icon">
+                    <Document />
+                  </el-icon>
+                  <div class="file-details">
+                    <div class="file-name" :title="file.name">{{ file.name }}</div>
+                    <div class="file-path" :title="file.path">{{ file.path }}</div>
+                    <div v-if="file.status !== 'pending'" class="file-status-row">
+                      <span class="file-status" :class="`status-${file.status}`">
+                        {{ getStatusText(file.status) }}
+                      </span>
+                      <span v-if="file.hash" class="file-hash-preview">
+                        {{ file.hash.substring(0, 16) }}...
+                      </span>
+                    </div>
+                  </div>
+                  <div class="file-actions">
+                    <el-button
+                      v-if="file.status === 'success'"
+                      @click="copyFileHash(file)"
+                      :icon="CopyDocument"
+                      text
+                      circle
+                      size="small"
+                      title="复制哈希值"
+                    />
+                    <el-button
+                      v-if="file.status === 'pending' || file.status === 'error'"
+                      @click="calculateSingleFile(file)"
+                      :icon="Refresh"
+                      text
+                      circle
+                      size="small"
+                      title="重新计算"
+                    />
+                    <el-button
+                      @click="removeFile(index)"
+                      :icon="Delete"
+                      text
+                      circle
+                      size="small"
+                      class="remove-btn"
+                      title="移除"
+                    />
+                  </div>
                 </div>
               </div>
-              <el-button
-                type="primary"
-                @click="calculateHash"
-                :loading="isCalculating"
-                :disabled="!filePath.trim()"
-                class="calculate-btn"
-                size="large"
-              >
-                <el-icon v-if="!isCalculating"><Checked /></el-icon>
-                {{ isCalculating ? '计算中...' : '计算哈希值' }}
-              </el-button>
+            </el-scrollbar>
+
+            <div v-else class="empty-state">
+              <el-icon class="empty-icon"><Document /></el-icon>
+              <p class="empty-text">请选择文件或拖拽文件到此处</p>
+              <p class="empty-hint">支持多文件选择，{{ autoCalculate ? '将自动计算哈希值' : '需手动点击批量计算' }}</p>
             </div>
           </div>
         </el-card>
       </el-col>
 
-      <!-- 右侧：结果显示区 -->
-      <el-col :span="12">
-        <el-card shadow="never" class="box-card result-card">
+      <!-- 右侧：结果统计 -->
+      <el-col :span="10">
+        <el-card shadow="never" class="box-card stats-card">
           <template #header>
             <div class="card-header">
-              <span>计算结果</span>
-              <el-button
-                v-if="hashResult"
-                @click="copyHash"
-                size="small"
-                :type="copySuccess ? 'success' : 'default'"
-                :icon="copySuccess ? Check : CopyDocument"
-              >
-                {{ copySuccess ? '已复制' : '复制' }}
-              </el-button>
+              <span>统计信息</span>
             </div>
           </template>
-          <div class="result-content">
-            <!-- 错误提示 -->
-            <el-alert
-              v-if="error"
-              type="error"
-              :title="error"
-              :closable="true"
-              @close="error = ''"
-              show-icon
-            />
-
-            <!-- 结果显示 -->
-            <div v-else-if="hashResult" class="result-display">
-              <div class="hash-value">
-                {{ hashResult }}
-              </div>
-              <div class="result-info">
-                <el-icon><InfoFilled /></el-icon>
-                <span>使用 {{ algorithmLabel }} 算法计算</span>
-              </div>
+          <div class="stats-content">
+            <div class="stat-item">
+              <span class="stat-label">总文件数</span>
+              <span class="stat-value">{{ files.length }}</span>
             </div>
-
-            <!-- 空状态 -->
-            <div v-else class="empty-state">
-              <el-icon class="empty-icon"><DataLine /></el-icon>
-              <p class="empty-text">计算结果将显示在这里</p>
-              <p class="empty-hint">选择文件后自动计算哈希值</p>
+            <div class="stat-item">
+              <span class="stat-label">已计算</span>
+              <span class="stat-value stat-success">{{ successCount }}</span>
+            </div>
+            <div class="stat-item">
+              <span class="stat-label">计算中</span>
+              <span class="stat-value stat-processing">{{ calculatingCount }}</span>
+            </div>
+            <div class="stat-item">
+              <span class="stat-label">待计算</span>
+              <span class="stat-value stat-pending">{{ pendingCount }}</span>
+            </div>
+            <div class="stat-item">
+              <span class="stat-label">失败</span>
+              <span class="stat-value stat-error">{{ errorCount }}</span>
+            </div>
+            <div class="stat-item">
+              <span class="stat-label">当前算法</span>
+              <span class="stat-value stat-algorithm">{{ algorithmLabel }}</span>
             </div>
           </div>
         </el-card>
@@ -149,7 +172,8 @@ import {
   Check,
   Checked,
   DataLine,
-  InfoFilled
+  InfoFilled,
+  Refresh
 } from '@element-plus/icons-vue';
 import { customMessage } from '@/utils/customMessage';
 import { listen } from '@tauri-apps/api/event';
@@ -157,12 +181,18 @@ import { listen } from '@tauri-apps/api/event';
 // 动态导入
 const { execute } = await import('@/services/executor.ts');
 
-const filePath = ref('');
+interface FileItem {
+  path: string;
+  name: string;
+  status: 'pending' | 'calculating' | 'success' | 'error';
+  hash?: string;
+  error?: string;
+}
+
+const files = ref<FileItem[]>([]);
 const algorithm = ref('sha256');
-const hashResult = ref('');
+const autoCalculate = ref(true);
 const isCalculating = ref(false);
-const error = ref('');
-const copySuccess = ref(false);
 const isDragging = ref(false);
 
 // 计算属性
@@ -175,83 +205,152 @@ const algorithmLabel = computed(() => {
   return labels[algorithm.value] || algorithm.value.toUpperCase();
 });
 
+const successCount = computed(() =>
+  files.value.filter(f => f.status === 'success').length
+);
+
+const calculatingCount = computed(() =>
+  files.value.filter(f => f.status === 'calculating').length
+);
+
+const pendingCount = computed(() =>
+  files.value.filter(f => f.status === 'pending').length
+);
+
+const errorCount = computed(() =>
+  files.value.filter(f => f.status === 'error').length
+);
+
+const getStatusText = (status: FileItem['status']) => {
+  const statusMap = {
+    pending: '待计算',
+    calculating: '计算中',
+    success: '成功',
+    error: '失败',
+  };
+  return statusMap[status];
+};
+
 // 选择文件
-const selectFile = async () => {
+const selectFiles = async () => {
   try {
     const { open } = await import('@tauri-apps/plugin-dialog');
     const selected = await open({
-      multiple: false,
+      multiple: true,
       title: '选择要计算哈希的文件'
     });
     
     if (selected) {
-      filePath.value = selected;
-      // 自动计算
-      await calculateHash();
+      const paths = Array.isArray(selected) ? selected : [selected];
+      addFiles(paths);
     }
   } catch (err: any) {
     customMessage.error('选择文件失败');
   }
 };
 
-// 计算哈希
-const calculateHash = async () => {
-  if (!filePath.value.trim()) {
-    error.value = '请输入文件路径';
-    return;
-  }
+// 添加文件到列表
+const addFiles = (paths: string[]) => {
+  const newFiles: FileItem[] = paths.map((path) => {
+    const name = path.split(/[/\\]/).pop() || path;
+    return { path, name, status: 'pending' };
+  });
 
-  error.value = '';
-  hashResult.value = '';
-  copySuccess.value = false;
-  isCalculating.value = true;
+  const uniqueNewFiles = newFiles.filter((nf) =>
+    !files.value.some((sf) => sf.path === nf.path)
+  );
+  
+  if (uniqueNewFiles.length > 0) {
+    files.value.push(...uniqueNewFiles);
+    customMessage.success(`已添加 ${uniqueNewFiles.length} 个文件`);
+    
+    // 如果开启自动计算，立即计算
+    if (autoCalculate.value) {
+      calculateNewFiles(uniqueNewFiles);
+    }
+  }
+};
+
+// 计算新添加的文件
+const calculateNewFiles = async (newFiles: FileItem[]) => {
+  for (const file of newFiles) {
+    await calculateSingleFile(file);
+  }
+};
+
+// 计算单个文件
+const calculateSingleFile = async (file: FileItem) => {
+  file.status = 'calculating';
+  file.hash = undefined;
+  file.error = undefined;
 
   try {
     const result = await execute({
       service: 'file-hasher',
       method: 'calculateHash',
       params: {
-        path: filePath.value,
+        path: file.path,
         algorithm: algorithm.value
       }
     });
     
     if (result.success) {
-      hashResult.value = result.data.hash;
-      customMessage.success('哈希值计算成功');
+      file.hash = result.data.hash;
+      file.status = 'success';
     } else {
-      error.value = result.error.message || '计算哈希失败';
+      file.error = result.error.message || '计算哈希失败';
+      file.status = 'error';
     }
   } catch (err: any) {
-    error.value = err.message || '计算哈希失败';
+    file.error = err.message || '计算哈希失败';
+    file.status = 'error';
+  }
+};
+
+// 批量计算所有文件
+const calculateAllFiles = async () => {
+  if (files.value.length === 0) {
+    customMessage.warning('请先添加文件');
+    return;
+  }
+
+  isCalculating.value = true;
+  
+  try {
+    for (const file of files.value) {
+      if (file.status !== 'success') {
+        await calculateSingleFile(file);
+      }
+    }
+    customMessage.success('批量计算完成');
   } finally {
     isCalculating.value = false;
   }
 };
 
-// 复制哈希值
-const copyHash = async () => {
-  if (!hashResult.value) return;
+// 复制文件哈希值
+const copyFileHash = async (file: FileItem) => {
+  if (!file.hash) return;
   
   try {
     const { writeText } = await import('@tauri-apps/plugin-clipboard-manager');
-    await writeText(hashResult.value);
-    copySuccess.value = true;
+    await writeText(file.hash);
     customMessage.success('已复制到剪贴板');
-    setTimeout(() => {
-      copySuccess.value = false;
-    }, 2000);
   } catch (err) {
     customMessage.error('复制失败');
   }
 };
 
+// 移除文件
+const removeFile = (index: number) => {
+  files.value.splice(index, 1);
+};
+
 // 清空所有
 const clearAll = () => {
-  filePath.value = '';
-  hashResult.value = '';
-  error.value = '';
-  copySuccess.value = false;
+  if (files.value.length === 0) return;
+  files.value = [];
+  customMessage.success('已清空文件列表');
 };
 // ===== 拖拽处理 =====
 // Tauri 后端事件监听器清理函数
@@ -271,14 +370,7 @@ const setupFileDropListener = async () => {
     }
     
     const pathArray = Array.isArray(paths) ? paths : [paths];
-    
-    if (pathArray.length > 1) {
-      customMessage.warning('只能选择一个文件，已自动选择第一个');
-    }
-    
-    filePath.value = pathArray[0];
-    customMessage.success(`已选择文件: ${pathArray[0]}`);
-    await calculateHash();
+    addFiles(pathArray);
   });
 };
 
@@ -396,14 +488,20 @@ onUnmounted(() => {
   height: 100%;
 }
 
-.input-card,
-.result-card {
+.file-list-card,
+.stats-card {
   height: 100%;
   margin-bottom: 0;
 }
 
-.input-card :deep(.el-card__body),
-.result-card :deep(.el-card__body) {
+.file-list-card :deep(.el-card__body) {
+  height: calc(100% - 60px);
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+}
+
+.stats-card :deep(.el-card__body) {
   height: calc(100% - 60px);
   padding: 20px;
   display: flex;
@@ -489,6 +587,7 @@ onUnmounted(() => {
 }
 
 /* 空状态 */
+/* 空状态 */
 .empty-state {
   display: flex;
   flex-direction: column;
@@ -497,6 +596,7 @@ onUnmounted(() => {
   flex: 1;
   color: var(--text-color-light);
   text-align: center;
+  padding: 40px 20px;
 }
 
 .empty-icon {
@@ -516,83 +616,174 @@ onUnmounted(() => {
   opacity: 0.7;
 }
 
-/* 文件信息 */
-.file-info {
-  display: flex;
-  flex-direction: column;
-  gap: 18px;
+/* 文件列表 */
+.file-list-scrollbar {
   flex: 1;
+  height: 100%;
 }
 
-.info-group {
+.file-list {
+  padding: 8px;
+}
+
+.file-item {
   display: flex;
-  flex-direction: column;
-  gap: 8px;
+  align-items: center;
+  padding: 12px;
+  border-radius: 6px;
+  transition: all 0.2s ease;
+  border: 1px solid transparent;
+  margin-bottom: 8px;
+  background-color: var(--bg-color);
 }
 
-.info-group label {
-  display: block;
+.file-item:hover {
+  border-color: var(--border-color);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+}
+
+.file-item.is-calculating {
+  background-color: rgba(64, 158, 255, 0.05);
+  border-color: var(--primary-color);
+}
+
+.file-icon {
+  margin-right: 12px;
+  color: var(--text-color-light);
+  font-size: 20px;
+  flex-shrink: 0;
+}
+
+.file-details {
+  flex: 1;
+  min-width: 0;
+}
+
+.file-name {
   font-size: 14px;
   font-weight: 500;
   color: var(--text-color);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-bottom: 4px;
 }
 
-.algorithm-display {
-  padding: 12px 16px;
-  background-color: var(--input-bg);
-  border: 1px solid var(--border-color);
-  border-radius: 4px;
-  font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
-  font-size: 14px;
-  color: var(--text-color);
+.file-path {
+  font-size: 12px;
+  color: var(--text-color-light);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-bottom: 4px;
 }
 
-.calculate-btn {
-  width: 100%;
-  font-size: 16px;
-  margin-top: auto;
-}
-
-/* 结果显示 */
-.result-content {
-  display: flex;
-  flex-direction: column;
-  flex: 1;
-}
-
-.result-display {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-  flex: 1;
-}
-
-.hash-value {
-  padding: 20px;
-  background-color: var(--input-bg);
-  border: 1px solid var(--border-color);
-  border-radius: 6px;
-  font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
-  font-size: 13px;
-  word-break: break-all;
-  line-height: 1.8;
-  color: var(--text-color);
-  flex: 1;
-  overflow: auto;
-}
-
-.result-info {
+.file-status-row {
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: 13px;
-  color: var(--text-color-light);
-  padding: 10px 14px;
-  background-color: rgba(64, 158, 255, 0.05);
-  border-radius: 4px;
-  border: 1px solid rgba(64, 158, 255, 0.1);
 }
 
+.file-status {
+  font-size: 12px;
+  padding: 2px 8px;
+  border-radius: 3px;
+  font-weight: 500;
+}
+
+.status-pending {
+  color: #909399;
+  background-color: rgba(144, 147, 153, 0.1);
+}
+
+.status-calculating {
+  color: #409eff;
+  background-color: rgba(64, 158, 255, 0.1);
+}
+
+.status-success {
+  color: #67c23a;
+  background-color: rgba(103, 194, 58, 0.1);
+}
+
+.status-error {
+  color: var(--error-color);
+  background-color: rgba(245, 108, 108, 0.1);
+}
+
+.file-hash-preview {
+  font-size: 11px;
+  font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+  color: var(--text-color-light);
+  background-color: var(--input-bg);
+  padding: 2px 6px;
+  border-radius: 3px;
+}
+
+.file-actions {
+  display: flex;
+  gap: 4px;
+  margin-left: 8px;
+  flex-shrink: 0;
+}
+
+.remove-btn {
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.file-item:hover .remove-btn {
+  opacity: 1;
+}
+
+/* 统计信息 */
+.stats-content {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.stat-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+  background-color: var(--bg-color);
+  border-radius: 6px;
+  border: 1px solid var(--border-color);
+}
+
+.stat-label {
+  font-size: 14px;
+  color: var(--text-color-light);
+}
+
+.stat-value {
+  font-size: 18px;
+  font-weight: bold;
+  color: var(--text-color);
+}
+
+.stat-success {
+  color: #67c23a;
+}
+
+.stat-processing {
+  color: #409eff;
+}
+
+.stat-pending {
+  color: #909399;
+}
+
+.stat-error {
+  color: var(--error-color);
+}
+
+.stat-algorithm {
+  font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+  font-size: 14px;
+}
 /* 响应式布局 */
 @media (max-width: 768px) {
   .header-content {
