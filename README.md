@@ -16,12 +16,62 @@
 ### 前置要求
 
 - Rust 1.70+ 及 Cargo
+- `cargo-watch` (自动编译工具)
 - Node.js 18+ (用于构建脚本)
 - Bun (推荐) 或 npm
 
-### 开发模式
+### 安装 cargo-watch
 
-在开发模式下，插件无需构建即可使用：
+首次开发前需要安装 `cargo-watch`：
+
+```bash
+cargo install cargo-watch
+```
+
+**如果遇到 Rust 版本问题**（例如 `requires rustc 1.88`），可以选择：
+
+**方法 1：升级 Rust（推荐）**
+```bash
+rustup update
+```
+
+**方法 2：使用锁定版本安装**
+```bash
+cargo install cargo-watch --locked
+```
+
+### 开发模式 - 自动重载
+
+**推荐方式：使用 `cargo-watch` 实现自动编译**
+
+```bash
+# 启动自动监视模式（推荐）
+bun run dev
+
+# 或直接使用 cargo-watch
+cargo watch -x build
+```
+
+当 Rust 源代码（`src/` 目录）发生变化时，`cargo-watch` 会自动重新编译 debug 版本：
+
+- ✅ **Rust 部分自动编译**：`cargo-watch` 监视 `src/` 目录，代码变化时自动执行 `cargo build`
+- ✅ **Vue 部分热重载**：`FileHasher.vue` 由 Vite 直接处理，支持 HMR
+- ✅ **无需手动重启**：下次调用插件时自动使用新编译的二进制文件
+
+**与 Tauri 的区别**：
+- Tauri 后端是**常驻进程**，需要杀进程重启
+- Sidecar 插件是**一次性执行**，每次调用都启动新进程
+- 因此修改代码后，**下次调用时自动使用新版本**，无需重启任何进程 🎉
+
+**适用场景**：
+- ✅ 适合：独立的计算任务（如文件哈希、数据转换）
+- ⚠️ 不适合：需要保持状态的常驻服务（如 WebSocket 服务器、数据库连接池）
+
+如果未来需要常驻进程，建议使用独立的后端服务 + HTTP/WebSocket 通信，而非 Sidecar 模式。
+
+### 开发模式 - 手动编译
+
+如果不需要自动重载，也可以手动编译：
 
 ```bash
 # 编译当前平台的 Rust debug 版本
@@ -31,16 +81,26 @@ cargo build
 bun run build:rust
 ```
 
-- ✅ `FileHasher.vue` 由 Vite 直接处理
-- ✅ Rust 二进制文件从 `target/<triple>/debug/` 加载
-- ✅ 支持 HMR 热重载（Vue 部分）
+### 独立测试
 
-编译产物路径示例：
+如果需要独立测试 Rust 二进制文件（不通过主应用）：
+
+```bash
+# 编译并运行
+bun run dev:test
+
+# 或手动执行
+cargo build && cargo run
+```
+
+### 编译产物路径
+
+Rust 二进制文件会输出到：
 - Windows x64: `target/x86_64-pc-windows-msvc/debug/file-hasher.exe`
 - macOS ARM64: `target/aarch64-apple-darwin/debug/file-hasher`
 - Linux x64: `target/x86_64-unknown-linux-gnu/debug/file-hasher`
 
-主应用在开发模式下会直接从 `plugins/example-file-hasher/` 目录加载此插件。
+主应用在开发模式下会直接从 `plugins/example-file-hasher/target/<triple>/debug/` 目录加载二进制文件。
 
 ## 生产构建
 
