@@ -8,6 +8,8 @@
 - ✅ 独立进程运行，不影响主应用性能
 - ✅ 支持多平台编译（Windows、macOS、Linux）
 - ✅ 通过 JSON-RPC 与主应用通信
+- ✅ 完整的 Vue UI 界面
+- ✅ 支持开发和生产环境
 
 ## 开发环境
 
@@ -15,18 +17,23 @@
 
 - Rust 1.70+ 及 Cargo
 - Node.js 18+ (用于构建脚本)
+- Bun (推荐) 或 npm
 
 ### 开发模式
 
-在开发模式下，`manifest.json` 中的可执行文件路径指向 `target/<triple>/debug/` 目录：
+在开发模式下，插件无需构建即可使用：
 
 ```bash
-# 编译当前平台的 debug 版本
+# 编译当前平台的 Rust debug 版本
 cargo build
 
 # 或使用 npm script
-bun run build
+bun run build:rust
 ```
+
+- ✅ `FileHasher.vue` 由 Vite 直接处理
+- ✅ Rust 二进制文件从 `target/<triple>/debug/` 加载
+- ✅ 支持 HMR 热重载（Vue 部分）
 
 编译产物路径示例：
 - Windows x64: `target/x86_64-pc-windows-msvc/debug/file-hasher.exe`
@@ -63,13 +70,18 @@ bun run build:all
 生成可分发的插件包：
 
 ```bash
+# 1. 安装依赖
+bun install
+
+# 2. 打包插件
 bun run package
 ```
 
 这会执行以下操作：
 
-1. **编译 release 版本**（当前平台）
-2. **创建 `dist/` 目录**，包含：
+1. **编译 Vue 组件**：`FileHasher.vue` → `FileHasher.js`
+2. **编译 Rust release 版本**（当前平台）
+3. **创建 `dist/` 目录**，包含：
    ```
    dist/
    ├── bin/
@@ -77,10 +89,11 @@ bun run package
    │   ├── file-hasher-macos-arm64
    │   ├── file-hasher-linux-x64
    │   └── ...
-   ├── manifest.json  (生产环境配置)
+   ├── FileHasher.js      (编译后的 Vue 组件)
+   ├── manifest.json      (生产环境配置，.vue → .js)
    └── README.md
    ```
-3. **生成 `.zip` 压缩包**：`file-hasher-v0.1.0.zip`
+4. **生成 `.zip` 压缩包**：`file-hasher-v0.1.0.zip`
 
 生产环境的 `manifest.json` 中，可执行文件路径会更新为：
 
@@ -159,11 +172,16 @@ example-file-hasher/
 ├── dist/                          # 打包产物（生产，gitignore）
 │   ├── bin/
 │   │   └── file-hasher-*.{exe,}
+│   ├── FileHasher.js              # 编译后的 Vue 组件
 │   └── manifest.json
+├── dist-ui/                       # Vue 构建产物（临时）
+│   └── FileHasher.js
 ├── file-hasher-v0.1.0.zip         # 发布包（gitignore）
+├── FileHasher.vue                 # UI 组件（开发模式）
 ├── build.js                       # 多平台构建脚本
+├── vite.config.js                 # Vue 组件构建配置
 ├── Cargo.toml                     # Rust 项目配置
-├── manifest.json                  # 插件清单（开发环境）
+├── manifest.json                  # 插件清单（开发环境使用 .vue）
 ├── package.json                   # 构建命令 + 依赖
 └── README.md
 ```

@@ -62,6 +62,24 @@ console.log(`   模式: ${mode}`);
 console.log(`   目标平台: ${targetPlatform}`);
 console.log('');
 
+// 构建 Vue 组件
+function buildVueComponent() {
+  console.log('📦 构建 Vue 组件...');
+  
+  try {
+    execSync('vite build', {
+      stdio: 'inherit',
+      cwd: __dirname
+    });
+    
+    console.log('✅ Vue 组件构建完成');
+    return true;
+  } catch (error) {
+    console.error('❌ Vue 组件构建失败:', error.message);
+    return false;
+  }
+}
+
 // 构建单个目标
 function buildTarget(targetKey) {
   const target = TARGETS[targetKey];
@@ -140,6 +158,15 @@ function packagePlugin() {
     process.exit(1);
   }
 
+  // 复制编译后的 Vue 组件
+  const componentJsPath = path.join(__dirname, 'dist-ui', 'FileHasher.js');
+  if (fs.existsSync(componentJsPath)) {
+    fs.copyFileSync(componentJsPath, path.join(distDir, 'FileHasher.js'));
+    console.log('   ✓ 复制 FileHasher.js');
+  } else {
+    console.warn('   ⚠️  未找到 FileHasher.js，请先运行 Vue 组件构建');
+  }
+
   // 生成生产环境的 manifest.json
   const manifest = JSON.parse(
     fs.readFileSync(path.join(__dirname, 'manifest.json'), 'utf-8')
@@ -154,11 +181,16 @@ function packagePlugin() {
     }
   }
 
+  // 如果 UI 组件是 .vue 文件，改为 .js
+  if (manifest.ui && manifest.ui.component) {
+    manifest.ui.component = manifest.ui.component.replace(/\.vue$/, '.js');
+  }
+
   fs.writeFileSync(
     path.join(distDir, 'manifest.json'),
     JSON.stringify(manifest, null, 2)
   );
-  console.log('   ✓ 生成 manifest.json (生产环境)');
+  console.log('   ✓ 生成 manifest.json (生产环境，.vue → .js)');
 
   // 复制 README（如果存在）
   const readmePath = path.join(__dirname, 'README.md');
@@ -230,8 +262,15 @@ async function createZipArchive(distDir) {
 
 // 主流程
 async function main() {
+  // 先构建 Vue 组件
+  const vueSuccess = buildVueComponent();
+  if (!vueSuccess) {
+    console.warn('⚠️  Vue 组件构建失败，将继续构建 Rust 部分');
+  }
+
   if (args.includes('--all')) {
     // 构建所有平台（仅在 CI 环境中推荐）
+    console.log('');
     console.log('🌍 构建所有支持的平台...');
     console.log('');
     
