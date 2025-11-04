@@ -39,5 +39,10 @@
         }
       ]
     }
-  ]
+  ],
+  "ui": {
+    "displayName": "文件哈希计算器",
+    "component": "FileHasher.js",
+    "icon": "🔐"
+  }
 }
