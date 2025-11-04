@@ -20,6 +20,7 @@ export default defineConfig({
         '@tauri-apps/api/core',
         '@tauri-apps/plugin-dialog',
         '@tauri-apps/plugin-clipboard-manager',
+        'fsevents',  // macOS 专用依赖，在其他平台需要外部化
         /^@\//  // 所有 @/ 开头的导入（主应用提供）
       ],
       output: {
