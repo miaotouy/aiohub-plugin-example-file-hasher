@@ -25,6 +25,14 @@
           >
             批量计算
           </el-button>
+          <el-button
+            @click="copyAllHashes"
+            :icon="CopyDocument"
+            :disabled="successCount === 0"
+            plain
+          >
+            复制全部
+          </el-button>
           <el-button @click="clearAll" :icon="Delete" plain>
             清空列表
           </el-button>
@@ -33,9 +41,9 @@
     </el-card>
 
     <!-- 主内容区域 -->
-    <el-row :gutter="20" class="content-section">
+    <el-row :gutter="12" class="content-section">
       <!-- 左侧：文件列表 -->
-      <el-col :span="14">
+      <el-col :span="19">
         <el-card shadow="never" class="box-card file-list-card">
           <template #header>
             <div class="card-header">
@@ -70,13 +78,16 @@
                   <div class="file-details">
                     <div class="file-name" :title="file.name">{{ file.name }}</div>
                     <div class="file-path" :title="file.path">{{ file.path }}</div>
-                    <div v-if="file.status !== 'pending'" class="file-status-row">
+                    <div class="file-status-row">
                       <span class="file-status" :class="`status-${file.status}`">
                         {{ getStatusText(file.status) }}
                       </span>
-                      <span v-if="file.hash" class="file-hash-preview">
-                        {{ file.hash.substring(0, 16) }}...
-                      </span>
+                    </div>
+                    <!-- 哈希值单独一行，更突出 -->
+                    <div v-if="file.hash" class="file-hash-container">
+                      <div class="file-hash-value" :title="file.hash">
+                        {{ file.hash }}
+                      </div>
                     </div>
                   </div>
                   <div class="file-actions">
@@ -122,7 +133,7 @@
       </el-col>
 
       <!-- 右侧：结果统计 -->
-      <el-col :span="10">
+      <el-col :span="5">
         <el-card shadow="never" class="box-card stats-card">
           <template #header>
             <div class="card-header">
@@ -280,9 +291,17 @@ const calculateNewFiles = async (newFiles: FileItem[]) => {
 
 // 计算单个文件
 const calculateSingleFile = async (file: FileItem) => {
-  file.status = 'calculating';
-  file.hash = undefined;
-  file.error = undefined;
+  // 找到数组中的实际索引，确保响应式更新
+  const index = files.value.findIndex(f => f.path === file.path);
+  if (index === -1) {
+    console.warn('[FileHasher] 未找到文件:', file.path);
+    return;
+  }
+  
+  // 通过索引直接修改数组中的对象，确保响应式追踪
+  files.value[index].status = 'calculating';
+  files.value[index].hash = undefined;
+  files.value[index].error = undefined;
 
   try {
     const result = await execute({
@@ -294,16 +313,23 @@ const calculateSingleFile = async (file: FileItem) => {
       }
     });
     
+    console.log('[FileHasher] 收到结果:', result);
+    
     if (result.success) {
-      file.hash = result.data.hash;
-      file.status = 'success';
+      // result.data 就是哈希值字符串本身
+      console.log('[FileHasher] 成功，设置哈希值:', result.data);
+      files.value[index].hash = result.data;
+      files.value[index].status = 'success';
+      console.log('[FileHasher] 文件状态已更新:', files.value[index].status, files.value[index].hash);
     } else {
-      file.error = result.error.message || '计算哈希失败';
-      file.status = 'error';
+      console.log('[FileHasher] 失败:', result.error);
+      files.value[index].error = result.error.message || '计算哈希失败';
+      files.value[index].status = 'error';
     }
   } catch (err: any) {
-    file.error = err.message || '计算哈希失败';
-    file.status = 'error';
+    console.log('[FileHasher] 捕获错误:', err);
+    files.value[index].error = err.message || '计算哈希失败';
+    files.value[index].status = 'error';
   }
 };
 
@@ -336,6 +362,29 @@ const copyFileHash = async (file: FileItem) => {
     const { writeText } = await import('@tauri-apps/plugin-clipboard-manager');
     await writeText(file.hash);
     customMessage.success('已复制到剪贴板');
+  } catch (err) {
+    customMessage.error('复制失败');
+  }
+};
+
+// 复制所有哈希值
+const copyAllHashes = async () => {
+  const successFiles = files.value.filter(f => f.status === 'success' && f.hash);
+  
+  if (successFiles.length === 0) {
+    customMessage.warning('没有可复制的哈希值');
+    return;
+  }
+  
+  // 格式：文件名: 哈希值
+  const content = successFiles
+    .map(f => `${f.name}: ${f.hash}`)
+    .join('\n');
+  
+  try {
+    const { writeText } = await import('@tauri-apps/plugin-clipboard-manager');
+    await writeText(content);
+    customMessage.success(`已复制 ${successFiles.length} 个哈希值`);
   } catch (err) {
     customMessage.error('复制失败');
   }
@@ -587,7 +636,6 @@ onUnmounted(() => {
 }
 
 /* 空状态 */
-/* 空状态 */
 .empty-state {
   display: flex;
   flex-direction: column;
@@ -628,7 +676,7 @@ onUnmounted(() => {
 
 .file-item {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   padding: 12px;
   border-radius: 6px;
   transition: all 0.2s ease;
@@ -649,6 +697,7 @@ onUnmounted(() => {
 
 .file-icon {
   margin-right: 12px;
+  margin-top: 2px;
   color: var(--text-color-light);
   font-size: 20px;
   flex-shrink: 0;
@@ -675,13 +724,14 @@ onUnmounted(() => {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  margin-bottom: 4px;
+  margin-bottom: 6px;
 }
 
 .file-status-row {
   display: flex;
   align-items: center;
   gap: 8px;
+  margin-bottom: 8px;
 }
 
 .file-status {
@@ -711,19 +761,39 @@ onUnmounted(() => {
   background-color: rgba(245, 108, 108, 0.1);
 }
 
-.file-hash-preview {
-  font-size: 11px;
+/* 哈希值容器 - 核心结果，应该最突出 */
+.file-hash-container {
+  margin-top: 4px;
+  padding: 8px 10px;
+  background: linear-gradient(135deg, rgba(64, 158, 255, 0.08) 0%, rgba(103, 194, 58, 0.08) 100%);
+  border: 1px solid rgba(64, 158, 255, 0.2);
+  border-radius: 4px;
+  transition: all 0.2s ease;
+}
+
+.file-hash-container:hover {
+  background: linear-gradient(135deg, rgba(64, 158, 255, 0.12) 0%, rgba(103, 194, 58, 0.12) 100%);
+  border-color: rgba(64, 158, 255, 0.4);
+  box-shadow: 0 2px 8px rgba(64, 158, 255, 0.15);
+}
+
+.file-hash-value {
+  font-size: 13px;
   font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
-  color: var(--text-color-light);
-  background-color: var(--input-bg);
-  padding: 2px 6px;
-  border-radius: 3px;
+  color: var(--text-color);
+  font-weight: 500;
+  word-break: break-all;
+  line-height: 1.6;
+  letter-spacing: 0.5px;
+  user-select: all;
+  cursor: text;
 }
 
 .file-actions {
   display: flex;
   gap: 4px;
   margin-left: 8px;
+  margin-top: 2px;
   flex-shrink: 0;
 }
 
