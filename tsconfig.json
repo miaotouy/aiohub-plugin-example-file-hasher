@@ -1,0 +1,34 @@
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "module": "ESNext",
+    "lib": ["ES2020", "DOM", "DOM.Iterable"],
+    "skipLibCheck": true,
+    "moduleResolution": "bundler",
+    "allowImportingTsExtensions": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "noEmit": true,
+    "jsx": "preserve",
+    "strict": true,
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["../../src/*"],
+      "@types/*": ["../../src/types/*"],
+      "@components/*": ["../../src/components/*"],
+      "@utils/*": ["../../src/utils/*"],
+      "@composables/*": ["../../src/composables/*"],
+      "@config/*": ["../../src/config/*"],
+      "@tools/*": ["../../src/tools/*"],
+      "@views/*": ["../../src/views/*"],
+      "@styles/*": ["../../src/styles/*"],
+      "@assets/*": ["../../src/assets/*"]
+    }
+  },
+  "include": [
+    "FileHasher.vue",
+    "shims-vue.d.ts",
+    "src/**/*.ts",
+    "src/**/*.d.ts"
+  ]
+}
