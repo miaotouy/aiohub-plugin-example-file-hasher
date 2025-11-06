@@ -31,7 +31,7 @@ export default defineConfig({
         }
       }
     },
-    outDir: 'dist-ui',
-    emptyOutDir: true
+    outDir: 'dist',
+    emptyOutDir: false // 主构建脚本负责清理
   }
 });

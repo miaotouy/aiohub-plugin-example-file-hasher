@@ -126,10 +126,7 @@ function packagePlugin() {
   const distDir = path.join(__dirname, 'dist');
   const binDir = path.join(distDir, 'bin');
 
-  // 清理并创建输出目录
-  if (fs.existsSync(distDir)) {
-    fs.rmSync(distDir, { recursive: true });
-  }
+  // 确保输出目录存在
   fs.mkdirSync(binDir, { recursive: true });
 
   // 复制编译产物
@@ -158,16 +155,7 @@ function packagePlugin() {
     process.exit(1);
   }
 
-  // 复制编译后的 Vue 组件
-  const componentJsPath = path.join(__dirname, 'dist-ui', 'FileHasher.js');
-  if (fs.existsSync(componentJsPath)) {
-    fs.copyFileSync(componentJsPath, path.join(distDir, 'FileHasher.js'));
-    console.log('   ✓ 复制 FileHasher.js');
-  } else {
-    console.warn('   ⚠️  未找到 FileHasher.js，请先运行 Vue 组件构建');
-  }
-
-  // 生成生产环境的 manifest.json
+  // 加载 manifest.json
   const manifest = JSON.parse(
     fs.readFileSync(path.join(__dirname, 'manifest.json'), 'utf-8')
   );
@@ -181,16 +169,26 @@ function packagePlugin() {
     }
   }
 
-  // 如果 UI 组件是 .vue 文件，改为 .js
+  // 验证 Vue 组件并更新 manifest
   if (manifest.ui && manifest.ui.component) {
-    manifest.ui.component = manifest.ui.component.replace(/\.vue$/, '.js');
+    const componentFileName = manifest.ui.component;
+    const componentBaseName = path.basename(componentFileName, '.vue');
+    const componentJsName = `${componentBaseName}.js`;
+    
+    const componentJsPath = path.join(distDir, componentJsName);
+    if (!fs.existsSync(componentJsPath)) {
+      console.error(`❌ 找不到编译后的 ${componentJsName} 文件，请确认 Vue 组件已成功构建`);
+      process.exit(1);
+    }
+    console.log(`   ✓ 发现 ${componentJsName}`);
+    manifest.ui.component = componentJsName;
   }
 
   fs.writeFileSync(
     path.join(distDir, 'manifest.json'),
     JSON.stringify(manifest, null, 2)
   );
-  console.log('   ✓ 生成 manifest.json (生产环境，.vue → .js)');
+  console.log('   ✓ 生成 manifest.json (生产环境)');
 
   // 复制 README（如果存在）
   const readmePath = path.join(__dirname, 'README.md');
@@ -218,12 +216,13 @@ async function createZipArchive(distDir) {
   console.log('');
   console.log('🗜️  创建 ZIP 压缩包...');
 
-  const pluginName = 'file-hasher';
-  const version = JSON.parse(
+  const manifest = JSON.parse(
     fs.readFileSync(path.join(__dirname, 'manifest.json'), 'utf-8')
-  ).version;
+  );
   
-  const zipFileName = `${pluginName}-v${version}.zip`;
+  const pluginId = manifest.id;
+  const version = manifest.version;
+  const zipFileName = `${pluginId}-v${version}.zip`;
   const zipPath = path.join(__dirname, zipFileName);
 
   // 删除旧的 zip 文件
@@ -262,10 +261,31 @@ async function createZipArchive(distDir) {
 
 // 主流程
 async function main() {
+  // 清理旧的构建产物
+  console.log('🧹 清理旧的构建产物...');
+  const distDir = path.join(__dirname, 'dist');
+  if (fs.existsSync(distDir)) {
+    fs.rmSync(distDir, { recursive: true });
+  }
+  const distUiDir = path.join(__dirname, 'dist-ui');
+  if (fs.existsSync(distUiDir)) {
+    fs.rmSync(distUiDir, { recursive: true });
+  }
+  const manifestData = JSON.parse(fs.readFileSync(path.join(__dirname, 'manifest.json'), 'utf-8'));
+  const zipFileName = `${manifestData.id}-v${manifestData.version}.zip`;
+  const zipPath = path.join(__dirname, zipFileName);
+  if (fs.existsSync(zipPath)) {
+    fs.unlinkSync(zipPath);
+  }
+  console.log('✅ 清理完成');
+  console.log('');
+
   // 先构建 Vue 组件
   const vueSuccess = buildVueComponent();
   if (!vueSuccess) {
-    console.warn('⚠️  Vue 组件构建失败，将继续构建 Rust 部分');
+    // 如果 Vue 组件构建失败，则直接退出，因为它是 UI 的一部分
+    console.error('❌ Vue 组件构建失败，无法继续。');
+    process.exit(1);
   }
 
   if (args.includes('--all')) {
