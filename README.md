@@ -1,5 +1,8 @@
 # File Hasher - Sidecar 插件示例
 
+> [!NOTE]
+> **本插件是 [AIO Hub](https://github.com/miaotouy/aio-hub) 的插件示例。**
+
 这是一个基于 Rust 的 Sidecar 插件示例，用于计算文件的 SHA-256 哈希值。
 
 ## 功能特性
