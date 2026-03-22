@@ -11,8 +11,11 @@
     "noEmit": true,
     "jsx": "preserve",
     "strict": true,
+    "esModuleInterop": true,
     "baseUrl": ".",
     "paths": {
+      "aiohub-sdk": ["../../src/services/plugin-sdk"],
+      "aiohub-ui": ["../../src/services/plugin-ui"],
       "@/*": ["../../src/*"],
       "@types/*": ["../../src/types/*"],
       "@components/*": ["../../src/components/*"],
@@ -22,12 +25,13 @@
       "@tools/*": ["../../src/tools/*"],
       "@views/*": ["../../src/views/*"],
       "@styles/*": ["../../src/styles/*"],
-      "@assets/*": ["../../src/assets/*"]
+      "@assets/*": ["../../src/assets/*"],
+      "@services/*": ["../../src/services/*"]
     }
   },
   "include": [
-    "FileHasher.vue",
-    "shims-vue.d.ts",
+    "*.ts",
+    "*.vue",
     "src/**/*.ts",
     "src/**/*.d.ts"
   ]

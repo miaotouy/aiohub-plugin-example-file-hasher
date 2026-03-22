@@ -44,7 +44,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue';
-import { customMessage } from '@/utils/customMessage';
+import { customMessage } from 'aiohub-sdk';
 import { listen } from '@tauri-apps/api/event';
 import HeaderSection from './components/HeaderSection.vue';
 import FileListSection from './components/FileListSection.vue';
@@ -52,7 +52,7 @@ import StatsSection from './components/StatsSection.vue';
 import type { FileItem } from './components/FileItem.vue';
 
 // 动态导入
-const { execute } = await import('@/services/executor.ts');
+import { execute } from 'aiohub-sdk';
 
 const files = ref<FileItem[]>([]);
 const algorithm = ref('sha256');
