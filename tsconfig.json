@@ -12,7 +12,6 @@
     "jsx": "preserve",
     "strict": true,
     "esModuleInterop": true,
-    "baseUrl": ".",
     "paths": {
       "aiohub-sdk": ["../../src/services/plugin-sdk"],
       "aiohub-ui": ["../../src/services/plugin-ui"],
@@ -29,10 +28,5 @@
       "@services/*": ["../../src/services/*"]
     }
   },
-  "include": [
-    "*.ts",
-    "*.vue",
-    "src/**/*.ts",
-    "src/**/*.d.ts"
-  ]
+  "include": ["*.ts", "*.vue", "src/**/*.ts", "src/**/*.d.ts"]
 }
